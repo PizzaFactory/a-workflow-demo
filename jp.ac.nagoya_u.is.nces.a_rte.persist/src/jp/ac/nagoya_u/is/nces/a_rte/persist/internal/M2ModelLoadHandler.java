@@ -169,6 +169,8 @@ public class M2ModelLoadHandler extends DefaultHandler {
 		return this.m2Root;
 	}
 
+	final StringBuilder leaf = new StringBuilder();
+
 	@Override
 	public void startDocument() throws SAXException {
 		this.xmlContexts = new ArrayList<XmlContext>();
@@ -188,6 +190,9 @@ public class M2ModelLoadHandler extends DefaultHandler {
 	 */
 	@Override
 	public void startElement(String uri, String localName, String qName, Attributes attributes) throws SAXException {
+		// reset content in `leaf`
+		leaf.setLength(0);
+
 		XmlContext currentXmlContext = getCurrentXmlContext();
 		if (localName.endsWith(M2XmlUtils.VARIANTS_TAG_NAME_SUFFIX)) {
 			pushXmlContext(currentXmlContext.createVariantsContext(localName));
@@ -292,16 +297,6 @@ public class M2ModelLoadHandler extends DefaultHandler {
 	 */
 	@Override
 	public void endElement(String uri, String localName, String qName) throws SAXException {
-		popM2Element();
-	}
-
-	/*
-	 * (non-Javadoc)
-	 * 
-	 * @see org.xml.sax.helpers.DefaultHandler#characters(char[], int, int)
-	 */
-	@Override
-	public void characters(char[] ch, int start, int length) throws SAXException {
 		switch (getCurrentXmlContext().contextType) {
 		case ROLE:
 			EStructuralFeature valueFeature;
@@ -312,7 +307,7 @@ public class M2ModelLoadHandler extends DefaultHandler {
 			}
 
 			if (valueFeature != null && valueFeature.getEType() instanceof EDataType) { // COVERAGE 常にtrue(falseとなるのは不具合混入時のみなので，未カバレッジで問題ない)
-				String originalValue = String.valueOf(ch, start, length);
+				String originalValue = leaf.toString();
 
 				Object value;
 				try {
@@ -339,13 +334,20 @@ public class M2ModelLoadHandler extends DefaultHandler {
 			break;
 		case REFERENCE:
 		case TYPE_REFERENCE:
-			String value = String.valueOf(ch, start, length);
+			String value = leaf.toString();
 			LOGGER.finest("set reference '" + value + "' to " + getCurrentXmlContext().contextM2Feature);
 			getCurrentXmlContext().contextM2Element.addUnresolvedReference((EReference) getCurrentXmlContext().contextM2Feature, M2ModelUtils.ID_PREFIX + value);
 			break;
 		default:
 			break;
 		}
+		popM2Element();
+	}
+
+	@Override
+	public void characters(char[] ch, int start, int length)
+			throws SAXException {
+		leaf.append(String.valueOf(ch, start, length));
 	}
 
 	/* パース中のEcucModuleConfigurationValuesをXmlContextsから取得する */
